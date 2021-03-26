@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <time.h>
 #include <mosquitto.h>
 
 #include "csc/csc_crossos.h"
@@ -37,14 +38,12 @@ static void on_connect (struct mosquitto *mosq, void *obj, int reason_code)
 static void message_callback (struct mosquitto *mosq, void *obj, const struct mosquitto_message *message)
 {
 	int match = 0;
-	printf("got message '%.*s' for topic '%s'\n", message->payloadlen, (char*) message->payload, message->topic);
-
+	printf ("got message '%.*s' for topic '%s'\n", message->payloadlen, (char*) message->payload, message->topic);
 	mosquitto_topic_matches_sub ("/devices/wb-adc/controls/+", message->topic, &match);
 	if (match)
 	{
 		printf("got message for ADC topic\n");
 	}
-
 }
 
 
@@ -53,12 +52,26 @@ static int mqtt_send(struct mosquitto *mosq, char * topic, char *msg)
   return mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 0, 0);
 }
 
+static int mqtt_send_i32(struct mosquitto *mosq, char * topic, int32_t val)
+{
+	char buf[33];
+	itoa(val, buf, 10);
+	return mosquitto_publish(mosq, NULL, topic, strlen(buf), buf, 0, 0);
+}
+
+
+
+
+
+
 
 int main (int argc, char const * argv[])
 {
 	UNUSED (argc);
 	csc_crossos_enable_ansi_color();
 	int rc = 0;
+	time_t rawtime1;
+	time_t rawtime2;
 	signal (SIGINT, handle_signal);
 	signal (SIGTERM, handle_signal);
 
@@ -69,7 +82,7 @@ int main (int argc, char const * argv[])
 
 	uint32_t arg_flags = 0;
 	char const * arg_filename = NULL;
-	char const * arg_mqtt_address = "localhost";
+	char const * arg_mqtt_address = "192.168.1.195";
 	uint32_t arg_mqtt_port = 1883;
 	uint32_t arg_mqtt_keepalive = 60;
 	uint32_t arg_mqtt_qos = 2;
@@ -82,7 +95,7 @@ int main (int argc, char const * argv[])
 	{'v', "verbose",    CSC_TYPE_U32,    &arg_flags,          ARG_VERBOSE, "Show verbose"},
 	{'i', "stdin",      CSC_TYPE_U32,    &arg_flags,          ARG_STDIN,   "Read pointcloud from stdin"},
 	{'f', "filename",   CSC_TYPE_STRING, &arg_filename,       0,           "Read pointcloud from a file"},
-	{'D', "delay",      CSC_TYPE_U32,    &arg_udelay,         0,           "Delay in microseconds"},
+	{'I', "interval",   CSC_TYPE_U32,    &arg_udelay,         0,           "Interval in microseconds"},
 	{CSC_ARGV_DEFINE_GROUP("MQTT:")},
 	{'a', "address",    CSC_TYPE_STRING, &arg_mqtt_address,   0,           "MQTT address"},
 	{'p', "port",       CSC_TYPE_U32,    &arg_mqtt_port,      0,           "MQTT port"},
@@ -112,7 +125,7 @@ int main (int argc, char const * argv[])
 
 	mosquitto_connect_callback_set (mosq, on_connect);
 	mosquitto_message_callback_set (mosq, message_callback);
-	mosquitto_subscribe (mosq, NULL, "/hello", 0);
+	mosquitto_subscribe (mosq, NULL, "/banana", 0);
 
 
 
@@ -138,12 +151,35 @@ int main (int argc, char const * argv[])
 	}
 	*/
 
+	{
+		struct tm * timeinfo;
+		time (&rawtime1);
+		timeinfo = localtime (&rawtime1);
+		printf ( "Current local time and date: %s", asctime (timeinfo));
+
+		timeinfo->tm_sec =
+
+		timeinfo->tm_hour ++;
+		rawtime2 = mktime (timeinfo);
+		timeinfo = localtime (&rawtime2);
+		printf ( "Ne local time and date: %s", asctime (timeinfo) );
+
+	}
+
+	return 0;
+
 
 
 	while (run)
 	{
+
 		int rc = mosquitto_loop (mosq, -1, 1);
-		rc = mqtt_send (mosq, "/hello", "banana");
+
+		time_t rawtime;
+
+
+		//rc = mqtt_send (mosq, "/hello", asctime (timeinfo));
+		rc = mqtt_send_i32 (mosq, "/hello", timeinfo->tm_hour);
 		printf ("%i\n", rc);
 		if (run && rc)
 		{
